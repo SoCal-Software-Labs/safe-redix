@@ -4,6 +4,7 @@ defmodule Redix.Connector do
   @socket_opts [:binary, active: false]
   @default_timeout 5000
   @default_ssl_opts [verify: :verify_peer, depth: 3]
+  @max_response_size_bytes 100_000_000
 
   alias Redix.{ConnectionError, Format}
 
@@ -252,16 +253,22 @@ defmodule Redix.Connector do
 
   defp sync_command(transport, socket, command, timeout) do
     with :ok <- transport.send(socket, Redix.Protocol.pack(command)),
-         do: recv_response(transport, socket, &Redix.Protocol.parse/1, timeout)
+         do: recv_response(transport, socket, &Redix.Protocol.parse/1, timeout, 0)
   end
 
-  defp recv_response(transport, socket, continuation, timeout) do
+  defp recv_response(transport, socket, continuation, timeout, read) do
     with {:ok, data} <- transport.recv(socket, 0, timeout) do
       case continuation.(data) do
         {:ok, %Redix.Error{} = error, ""} -> {:error, error}
         {:ok, response, ""} -> {:ok, response}
         {:ok, _response, rest} when byte_size(rest) > 0 -> {:error, :extra_bytes_after_reply}
-        {:continuation, continuation} -> recv_response(transport, socket, continuation, timeout)
+        {:continuation, continuation} -> 
+          new_byte_size = byte_size(data) + read
+          if new_byte_size < @max_response_size_bytes do
+            recv_response(transport, socket, continuation, timeout, new_byte_size)
+          else
+            {:error, :response_too_large}
+          end
       end
     end
   end
