@@ -1,4 +1,7 @@
-# Redix
+# Safe-Redix
+
+Redix Client forked to allow a maximum response size of 100mb.
+
 
 [![hex.pm badge](https://img.shields.io/badge/Package%20on%20hex.pm-informational)](https://hex.pm/packages/redix)
 [![Documentation badge](https://img.shields.io/badge/Documentation-ff69b4)][docs]
